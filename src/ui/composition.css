@@ -1,0 +1,264 @@
+/* Spatial geometry is owned by WorldComposition; local machines own their internals. */
+#world .location {
+  left: 0;
+  top: 0;
+  width: var(--facility-w);
+  height: var(--facility-h);
+  min-height: 0;
+  padding: 20px;
+  background: radial-gradient(
+    ellipse at 50% 35%,
+    #162938e0,
+    #0a1520a8 65%,
+    #080f1800
+  );
+  border: 0;
+  border-radius: 28px;
+  box-shadow: none;
+  transition: opacity 0.25s;
+}
+#world .location[data-presentation="full"] {
+  background: linear-gradient(145deg, #10212cf5, #0c1621e8);
+  border: 1px solid #68798660;
+  box-shadow: 0 16px 60px #0005;
+}
+.location-body {
+  height: calc(100% - 106px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #435c6a transparent;
+}
+.location[data-presentation="full"] .facility-summary {
+  display: none;
+}
+.location:not([data-presentation="full"]) .location-body,
+.location:not([data-presentation="full"]) header p {
+  display: none;
+}
+.location:not([data-presentation="full"]) header {
+  margin: 0;
+}
+.location:not([data-presentation="full"]) header small {
+  font-size: 8px;
+  letter-spacing: 0.12em;
+}
+.location:not([data-presentation="full"]) .location-title {
+  font-size: 21px;
+  padding: 6px 0 2px;
+}
+.location:not([data-presentation="full"]) .location-title span {
+  font-size: 12px;
+  margin-left: 8px;
+}
+.facility-mark {
+  display: block;
+  position: relative;
+  width: 100%;
+  height: 43px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.facility-mark > span {
+  font-size: 34px;
+  line-height: 38px;
+  color: var(--cyan);
+  background: #0d1924;
+  padding: 0 12px;
+  position: relative;
+  z-index: 1;
+}
+.facility-mark svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: #69838e;
+  stroke-width: 1.3;
+}
+.facility-summary .facility-status {
+  color: #b8d3d9;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.facility-summary .facility-next {
+  color: #95a9b8;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.has-new .facility-next {
+  color: #e0bd85;
+}
+.facility-action button {
+  margin-top: 8px;
+  width: 100%;
+  font-size: 11px;
+  padding: 8px;
+}
+.location[data-mastery="mastered"] .facility-mark {
+  height: 25px;
+}
+.location[data-mastery="mastered"] .facility-mark > span {
+  font-size: 24px;
+  line-height: 23px;
+}
+.location[data-mastery="automated"] .facility-mark svg {
+  stroke: #8bc5b4;
+}
+#world .peripheral {
+  opacity: 0.52;
+}
+#world .peripheral:hover,
+#world .peripheral:focus-within {
+  opacity: 1;
+}
+#world .dynamics[data-stage="ECHO"] .location-title {
+  visibility: hidden;
+}
+.dynamics[data-stage="ECHO"] .facility-next {
+  visibility: hidden;
+}
+.dynamics[data-stage="ECHO"] .facility-mark {
+  pointer-events: none;
+}
+#apparatus {
+  display: grid;
+  grid-template-columns: repeat(3, 144px);
+  justify-content: center;
+  gap: 22px 18px;
+  padding: 16px 0 32px;
+}
+#apparatus .game-card:nth-child(3n + 2) {
+  translate: 0 12px;
+}
+#apparatus .game-card {
+  height: 104px;
+  border-radius: 4px 16px 4px 4px;
+  border-bottom: 3px solid #628291;
+}
+#structure[data-mastery="automated"] #apparatus .owned {
+  height: 65px;
+  opacity: 0.65;
+}
+#structure[data-mastery="automated"] #apparatus .owned span {
+  display: none;
+}
+#anchor .facility-mark > span {
+  color: var(--amber);
+}
+#anchor .facility-mark svg {
+  stroke: #c59b5c;
+}
+#anchor[data-regime="3"] .facility-mark svg {
+  stroke-width: 2.5;
+}
+#anchor[data-regime="4"] .facility-mark svg {
+  stroke-width: 4;
+}
+#anchor .location-body {
+  padding-right: 12px;
+}
+.center-beacon {
+  position: absolute;
+  top: 310px;
+  left: 0;
+  transform: translateX(-50%);
+  width: 300px;
+  padding: 16px;
+  background: #0b1824eb;
+  border: 1px solid #678793;
+  border-radius: 18px 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  text-align: center;
+}
+.center-beacon strong {
+  font-size: 19px;
+}
+.center-beacon small {
+  font-size: 10px;
+  color: var(--amber);
+  letter-spacing: 0.12em;
+}
+.center-beacon span {
+  font-size: 11px;
+  color: #b7c6ce;
+}
+.center-beacon:active:not(:disabled) {
+  transform: translateX(-50%) scale(0.97);
+}
+.planetary .center-beacon {
+  left: 350px;
+  top: 660px;
+}
+.planetary[data-presentation="full"] .center-beacon,
+.array-machine[data-presentation="full"] .center-beacon {
+  display: none;
+}
+.planetary:not([data-presentation="full"]) .planet-console,
+.array-machine:not([data-presentation="full"]) .array-console,
+.array-machine:not([data-presentation="full"]) #seed-components {
+  display: none;
+}
+.array-machine:not([data-presentation="full"]) .array-socket {
+  width: 24px;
+  min-height: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.array-machine:not([data-presentation="full"]) .array-socket > * {
+  display: none;
+}
+.array-machine.echo .center-beacon,
+.planetary[data-stage="ECHO"] .center-beacon {
+  display: none;
+}
+.array-machine.echo::after {
+  font-size: 11px;
+}
+.array-console {
+  max-height: 840px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.erasure {
+  left: 0;
+  top: 0;
+}
+.erasure[data-presentation="compact"] {
+  visibility: hidden;
+}
+#world[data-composition="PLANETARY"] .array-machine.echo {
+  opacity: 0.12;
+}
+#game.reduced .location {
+  transition: opacity 0.15s;
+}
+#world .location.outside-safe-view:not([data-presentation="full"]) {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+#game[data-center-owner="planetary"] #binding,
+#game[data-center-owner="array"] #binding {
+  visibility: hidden;
+}
+#anchor-from-core {
+  font-size: 11px;
+  margin-top: 10px;
+  padding: 9px;
+}
+@media (max-width: 950px) {
+  #coordinate {
+    max-width: 42vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

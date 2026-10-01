@@ -1,0 +1,65 @@
+[
+  {
+    "name": "fresh",
+    "rate": "3.75",
+    "capacity": 100,
+    "duration0": 3.8,
+    "price0": "12",
+    "gain": "0",
+    "canRenew": false
+  },
+  {
+    "name": "mid-run",
+    "rate": "1.8121051351667732e19",
+    "capacity": 200,
+    "duration0": 1.8415471787542657,
+    "price0": "8.399999999999999",
+    "gain": "0",
+    "canRenew": false
+  },
+  {
+    "name": "post-evap",
+    "rate": "2.319494573013472e20",
+    "capacity": 200,
+    "duration0": 1.8415471787542657,
+    "price0": "8.399999999999999",
+    "gain": "0",
+    "canRenew": false
+  },
+  {
+    "name": "post-origin",
+    "rate": "1.3047156973200784e21",
+    "capacity": 200,
+    "duration0": 1.8415471787542657,
+    "price0": "8.399999999999999",
+    "gain": "0",
+    "canRenew": false
+  },
+  {
+    "name": "active-experiment",
+    "rate": "3.624210270333547e19",
+    "capacity": 200,
+    "duration0": 1.8415471787542657,
+    "price0": "8.399999999999999",
+    "gain": "0",
+    "canRenew": false
+  },
+  {
+    "name": "queue-200",
+    "rate": "1.8121051351667732e19",
+    "capacity": 200,
+    "duration0": 1.8415471787542657,
+    "price0": "8.399999999999999",
+    "gain": "0",
+    "canRenew": false
+  },
+  {
+    "name": "all-permanents",
+    "rate": "3.808700080934131e36",
+    "capacity": 200,
+    "duration0": 1.4,
+    "price0": "3.3599999999999994",
+    "gain": "42",
+    "canRenew": true
+  }
+]

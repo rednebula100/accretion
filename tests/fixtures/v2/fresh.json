@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "mass": "1e-13",
+  "energy": "36",
+  "information": "0",
+  "origins": 0,
+  "runs": 0,
+  "best": 0,
+  "highest": -1,
+  "seen": [],
+  "everSeen": [],
+  "nodes": [],
+  "research": [],
+  "phenomena": [
+    "horizon"
+  ],
+  "queue": [],
+  "nextId": 1,
+  "elapsed": 0,
+  "totalTime": 0,
+  "absorbed": 0,
+  "runAbsorbed": 0,
+  "spin": 0.35,
+  "auto": true,
+  "reserve": 0.2,
+  "autoCategory": -1,
+  "clock": 0,
+  "captureClock": 0,
+  "activity": 0,
+  "experiment": null,
+  "experiments": [],
+  "condition": "balanced",
+  "settings": {
+    "audio": 0.35,
+    "quality": "AUTO",
+    "reducedMotion": false
+  },
+  "savedAt": 1789190400000
+}
