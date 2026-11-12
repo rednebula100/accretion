@@ -16,9 +16,13 @@ The simplex-noise implementation is Ashima Arts / Stefan Gustavson MIT-licensed 
 | --- | --- | --- | --- |
 | Three.js | 0.185.1 | MIT | `licenses/three-MIT.txt` |
 | break_eternity.js | 2.1.3 | MIT | `licenses/break-eternity-MIT.txt` |
-| Inter, via @fontsource/inter | 5.2.8 | SIL OFL 1.1 | `licenses/Inter-OFL.txt` |
-| IBM Plex Mono, via @fontsource/ibm-plex-mono | 5.2.7 | SIL OFL 1.1 | `licenses/IBM-Plex-OFL.txt` |
+| GSAP | 3.15.1 | GreenSock Standard "no charge" license | https://gsap.com/community/standard-license/ |
+| ZzFX | 1.4.0 | MIT (Frank Force) | bundled package notice |
+| Lucide | 1.x | ISC | bundled package notice |
+| vite-plugin-singlefile (build only) | 2.3.4 | MIT | — |
+| Chakra Petch, via @fontsource/chakra-petch | 5.x | SIL OFL 1.1 | — |
+| Pretendard (subset) | 1.3.x | SIL OFL 1.1 | — |
 | Gargantua shader | cdd4df5 | MIT (upstream README declaration) | `licenses/gargantua-MIT.txt`, preserved upstream README |
 | Ashima / Stefan Gustavson noise | upstream source | MIT | `licenses/webgl-noise-MIT.txt` |
 
-Vite (MIT) and Playwright (Apache-2.0) are development dependencies and do not execute in the shipped game. See package-lock.json for complete dependency resolution.
+Vite (MIT) and subset-font (BSD-3-Clause) are development dependencies and do not execute in the shipped game. See package-lock.json for complete dependency resolution.

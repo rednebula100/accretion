@@ -1,922 +1,503 @@
-import { mountArrayView } from "./ui/array-view.js";
-import { mountErasure } from "./ui/erasure-well.js";
-import {
-  regime,
-  returnCoherence,
-  converge,
-  convergenceGain,
-  breachPlanetary,
-} from "./systems/spatial-progression.js";
-import { record } from "./systems/world.js";
+import "@fontsource/chakra-petch/500.css";
+import "@fontsource/chakra-petch/600.css";
+import "@fontsource/chakra-petch/700.css";
 import "./style.css";
-import "./ui/composition.css";
-import "./ui/interaction.css";
-import { MATTER } from "./content.js";
-import {
-  fresh,
-  tick,
-  buy,
-  unlocked,
-  price,
-  rate,
-  fmt,
-  massText,
-  offlineAsync,
-} from "./engine.js";
-import { load, save, encode, decode } from "./save.js";
-import { Universe } from "./renderer.js";
-import { Soundscape } from "./audio.js";
-import { APPARATUS, FLOW_NODES, COHERENCE, MODULES } from "./data/pass1.js";
-import {
-  freshWorld,
-  drainEvents,
-  purchaseApparatus,
-  purchaseFlow,
-  reconstructWorld,
-  reconstructionReady,
-  spendCoherence,
-  bindingChannels,
-  anchorGain,
-  anchorWorld,
-  purchaseModule,
-  convertFlux,
-  enterLocation,
-} from "./systems/world.js";
-import { bindWorldPointer } from "./ui/world-pointer.js";
-import { SessionClock } from "./ui/session-clock.js";
-import { CameraDirector } from "./ui/camera.js";
-import { WorldComposition } from "./ui/world-composition.js";
-import {
-  revealedApparatus,
-  revealedFlow,
-  visibilityState,
-  ResourcePresentation,
-  bindingPresentation,
-  apparatusHardware,
-} from "./ui/interaction-state.js";
-import { reconstructionGain } from "./systems/world.js";
-import { PresentationEventBus, FXDirector } from "./ui/presentation.js";
-const root = document.querySelector("#game");
-const location = (id, number, title, copy, body) =>
-  `<section id="${id}" class="location ${id}"><header><small>${number}</small><button class="location-title" data-toggle="${id}" aria-expanded="false">${title} <span>⌄</span></button><button class="facility-focus" data-travel="${id}" aria-label="Focus ${title}">Focus ↗</button><p>${copy}</p></header>${body}</section>`;
-root.innerHTML = `<canvas id="cosmos"></canvas><div id="viewport"><div id="world"><svg class="world-links" viewBox="-1600 -1000 3200 2400"><path d="M-440 0 Q-650-200-450-440 M-450-440 Q0-300 0 0 M0 0 Q-180 360 0 660 M0 0 Q450-200 880 0 M0 660 Q350 750 570 520"/></svg>
- ${location("matter", "01 / CAPTURE", "Matter Feed", "Everything that falls in becomes part of you.", '<div id="matter-cards"></div><div id="relay-device" hidden><b>⋈ CATALOG RELAY</b><span>KNOWN RANGE · NEW FRONTIER HELD FOR YOU</span><button id="relay-toggle">Pause relay</button></div><footer id="transit"></footer>')}
- ${location("structure", "02 / APPARATUS", "Structure", "Give the field a shape.", '<div id="scaffold"></div><div id="apparatus"></div>')}
- ${location("dynamics", "FLOW / COHERENT RESPONSE", "Dynamics", "A response is forming below the horizon.", '<div id="flow-graph"></div><div id="coherence-choices"></div>')}
- ${location("anchor", "04 / PERSISTENT FIELD", "Field Anchor", "What remains becomes your beginning.", '<div class="anchor-core">◉<strong>STABLE CORE</strong><span>Energy ×1.8 across every Seed</span><b id="residue"></b></div><div id="modules"></div>')}
- ${location("converter", "03 / EXCHANGE", "Converter", "Redirect flow. Choose its purpose.", '<div id="regulator-controls"></div><button id="convert" class="device"><b>ϟ → ◆</b><strong>Radiative conversion</strong><span>20 Flux → 10 seconds of Energy</span><small>Spend flow here or develop Dynamics.</small></button>')}
- <section id="binding" hidden><svg viewBox="0 0 320 320" aria-label="Binding field stability"><circle class="shell" cx="160" cy="160" r="148"/>${[0, 1, 2].map((i) => `<circle class="sector" data-channel="${i}" cx="160" cy="160" r="140" transform="rotate(${i * 120 - 90} 160 160)"/>`).join("")}</svg><div><small id="boundary-stage"></small><h2>Binding Limit</h2><p id="binding-message"></p><button id="anchor-action">Anchor</button><div class="channel-links"><button data-travel="structure">Field</button><button data-travel="dynamics">Response</button><button data-travel="matter">Accretion</button></div></div></section></div></div>
- <header id="hud"><button id="home" aria-label="Return to universe">◉ <b>ACCRETION</b></button><div class="resource"><small>MASS</small><strong id="mass"></strong></div><div class="resource energy"><small>ENERGY</small><strong id="energy"></strong><span id="income"></span></div><div class="resource flux" id="flux-wrap" hidden><small>FLUX</small><strong id="flux"></strong></div><div class="resource coherence" id="coherence-wrap" hidden><small>COHERENCE</small><strong id="coherence"></strong></div><button id="settings-open" aria-label="Calibration settings">Calibration [O]</button></header>
- <div id="signals"></div><footer id="compass"><button id="back">↖ Universe</button><span id="coordinate">SEED / OBSERVATION FIELD</span><small>Drag empty space · Scroll to zoom · Esc to return</small></footer><div id="toast" role="status" aria-live="polite"></div><div id="moment" aria-live="polite"></div>
- <dialog id="settings"><h2>Calibration Terminal</h2><label>Quality <select id="quality"><option>AUTO</option><option>BALANCED</option><option>MOBILE</option><option>ULTRA</option></select></label><label><input type="checkbox" id="motion"> Reduced motion</label><label>Audio <input type="range" id="volume" min="0" max="1" step=".05"></label><button id="export">Export save</button><button id="locate-well">Locate Erasure Well</button><label>Import save<input type="file" id="import" accept=".json,application/json"></label><p id="save-message"></p><button id="settings-close">Return to the field</button></dialog>`;
-const $ = (id) => document.getElementById(id),
-  loaded = load();
-let state = loaded.state;
-function adopt(s) {
-  if (s.world) return;
-  s.world = freshWorld();
-  s.world.manual = [...s.everSeen];
-  s.world.compatibilityFrontier = s.highest;
-  const map = {
-    feed: ["st-decay", "core-1"],
-    field: ["st-disk", "core-2"],
-    grid: ["st-apparatus"],
-    tap: ["st-apparatus"],
-    binding: ["st-planetary", "core-9"],
-  };
-  for (const [id, old] of Object.entries(map))
-    if (old.some((n) => s.nodes.includes(n))) s.world.apparatus.push(id);
-  if (s.dynamics.unlocked) s.world.locations.dynamics = "DETECTED";
-}
-adopt(state);
-const camera = new CameraDirector(),
-  bus = new PresentationEventBus(),
-  fx = new FXDirector(bus, root, $("toast")),
-  audio = new Soundscape();
-$("world").insertAdjacentHTML(
-  "beforeend",
-  '<button id="calibration-terminal" class="calibration-terminal"><svg viewBox="0 0 100 60" aria-hidden="true"><path d="M15 50 V10 H85 V50 Z M25 20 H75 V36 H25 Z M35 50 V57 M65 50 V57 M45 27 H55"/></svg><strong>CALIBRATION</strong><span>Observer console · [O]</span></button>',
-);
-$("calibration-terminal").onclick = () => $("settings-open").click();
-const fluxPresentation = new ResourcePresentation(state.dynamics.flux);
-let renderer;
-try {
-  renderer = new Universe($("cosmos"));
-  renderer.setQuality(state.settings.quality);
-} catch (e) {
-  $("toast").textContent = "WebGL unavailable. The field remains playable.";
-  console.error(e);
-}
-camera.reducedMotion =
-  state.settings.reducedMotion ||
-  matchMedia("(prefers-reduced-motion: reduce)").matches;
-const clock = new SessionClock(performance.now());
-let lastUI = -1,
-  stamp = "",
-  catchingUp = false,
-  paused = false,
-  transaction = null,
-  displayEnergy = state.energy,
-  displayMass = state.mass;
-const telemetry = {
-  frames: [],
-  inputLatency: [],
-  scenes: [],
-  timeline: [],
-  errors: [],
-};
-const arrayView = mountArrayView(
-  $("world"),
-  () => state,
-  travel,
-  beginReset,
-  () => !!transaction || catchingUp,
-  (depth) => camera.go("array", depth),
-);
-const well = mountErasure(
-  $("world"),
-  () => state,
-  () => {
-    state = fresh();
-    composition.expanded.clear();
-    composition.remote = false;
-    adopt(state);
-    arrayView.clear();
-    renderer?.resetFromState(state);
-    camera.go("universe");
-    stamp = "";
-    displayEnergy = state.energy;
-    displayMass = state.mass;
-    save(state);
-    renderUI();
-  },
-  () => !!transaction || catchingUp,
-);
-const activePointers = new Set();
-root.addEventListener(
-  "pointerdown",
-  (e) => activePointers.add(e.pointerId),
-  true,
-);
-for (const type of ["pointerup", "pointercancel", "lostpointercapture"])
-  window.addEventListener(
-    type,
-    (e) => activePointers.delete(e.pointerId),
-    true,
-  );
-window.addEventListener("blur", () => activePointers.clear());
-const composition = new WorldComposition(
-  root,
-  camera,
-  () => state,
-  () => activePointers.size > 0 || arrayView.dragging || well.holding,
-);
-root
-  .querySelector(".anchor-core")
-  .insertAdjacentHTML(
-    "beforeend",
-    '<button id="anchor-from-core">Anchor</button>',
-  );
-$("anchor-from-core").onclick = () => beginReset("anchor");
-$("locate-well").onclick = () => {
-  $("settings").close();
-  composition.remote = true;
-  camera.go("erasure");
-};
-function markup(id, html) {
-  const el = $(id);
-  if (el.dataset.markup !== html) {
-    el.innerHTML = html;
-    el.dataset.markup = html;
-  }
-}
-const card = (n, kind, owned, disabled, currency) =>
-  `<button class="game-card ${owned ? "owned" : ""}" data-action="${kind}" data-id="${n.id}" ${disabled ? "disabled" : ""}><i>${n.icon || "⌁"}</i><strong>${n.name}</strong><span>${n.effect}</span><b>${owned ? "ESTABLISHED" : (disabled ? "Requires " : "") + fmt(n.cost) + " " + currency}</b></button>`;
-function graph() {
-  const w = state.world;
-  if (
-    w.modules.includes("recall") &&
-    w.knownRegions.includes(0) &&
-    w.region === 0
-  )
-    return `<div class="recalled-root"><i>⟲</i><strong>Region A · remembered root</strong><p>Recall is gathering the known 155 Flux schematic.</p></div>`;
-  if (w.locations.dynamics !== "ACTIVE")
-    return '<button class="signal-orb" data-travel="dynamics">⌁<span>Approach the signal</span></button>';
-  const nodes = revealedFlow(state),
-    edges = [];
-  for (const n of nodes)
-    for (const p of n.parents) {
-      const a = nodes.find((n) => n.id === p);
-      if (a)
-        edges.push(
-          `<path d="M${a.x + 144} ${a.y + 42} C${a.x + 174} ${a.y + 42},${n.x - 30} ${n.y + 42},${n.x} ${n.y + 42}"/>`,
-        );
-    }
-  if (w.region === 1)
-    for (const n of nodes.filter((n) => !n.parents.length))
-      edges.push(
-        `<path d="M144 42 C174 42,170 ${n.y + 42},${n.x} ${n.y + 42}"/>`,
-      );
-  if (w.region === 0 && reconstructionReady(state) && !w.flow.includes("deep"))
-    edges.push(
-      '<path d="M344 -43 C530 -43,570 10,600 42 M344 127 C530 127,570 75,600 42"/>',
-    );
-  if (w.region === 0 && w.flow.includes("deep"))
-    edges.push('<path d="M544 42 C570 42,570 42,600 42"/>');
-  return `<svg class="flow-edges" viewBox="-20 -110 800 330">${edges.join("")}</svg>${nodes.map((n) => `<div class="node" style="transform:translate(${n.x}px,${n.y}px)">${card(n, "flow", w.flow.includes(n.id), w.flow.includes(n.id) || !n.parents.every((p) => w.flow.includes(p)) || state.dynamics.flux.lt(n.cost), "F")}</div>`).join("")}${w.region === 0 && !reconstructionReady(state) ? "" : `<button class="reconstruct node game-card" style="transform:translate(${w.region === 0 ? 600 : 0}px,0px)" data-action="reconstruct" data-id="reconstruct" ${reconstructionReady(state) ? "" : "disabled"}><i>⟲</i><strong>${w.region === 0 ? "Reconstruction I" : "Coherent root"}</strong><span>${w.region === 0 ? "Compress this region" : "The old region remains as knowledge"}</span><b>${w.region === 0 ? `+${reconstructionGain(state)} Coherence` : "REGION B"}</b></button>`}${reconstructionReady(state) ? `<p class="coherence-rule">Yield = 2 + floor(connected nodes / 2) + charge (0 / 1 / 2 at 0 / 80 / 240 Flux).<br>Compress now, complete the remaining branch, or store charge. Retains 25% Flux.</p>` : ""}`;
-}
-function renderUI() {
-  if (root.querySelector("button:active")) return;
-  const w = state.world,
-    u = unlocked(state),
-    signature = JSON.stringify([
-      u,
-      w.apparatus,
-      w.flow,
-      w.region,
-      w.choices,
-      w.modules,
-      w.locations,
-      w.boundary,
-      w.residue,
-      w.coherence,
-      reconstructionGain(state),
-      state.highest,
-      regime(state),
-      w.p2.cl,
-      APPARATUS.map((n) => state.energy.gte(n.cost)),
-      FLOW_NODES.map((n) => state.dynamics.flux.gte(n.cost)),
-      [0, 1, 2].map((n) => state.energy.gte(price(state, Math.max(0, u - n)))),
-      state.queue.map((q) => q.matter),
-    ]);
-  $("transit").textContent =
-    `${state.queue.length} IN TRANSIT · ${state.seen.length} OBSERVED THIS RUN`;
-  $("income").textContent = `+${fmt(rate(state))} / s`;
+import gsap from "gsap";
+import { Sim, newSave, K } from "./game/sim.js";
+import { Gfx, SHADOW_K } from "./game/gfx.js";
+import { Overlay, C } from "./game/overlay.js";
+import { Audio } from "./game/audio.js";
+import { UI } from "./game/ui.js";
+import { MATTER, UPGRADES, NODES, fmt, fmtMass } from "./game/data.js";
 
-  $("coherence").textContent = w.coherence;
-  $("residue").textContent = `${w.residue} RESIDUE`;
-  $("anchor-from-core").disabled = !anchorGain(state);
-  $("anchor-from-core").textContent = `Anchor · +${anchorGain(state)} Residue`;
-  $("anchor").querySelector(".anchor-core span").textContent = w.anchors
-    ? "Energy ×1.8 across every Seed"
-    : "Dormant field · Anchor to restore";
-  $("convert").disabled =
-    state.dynamics.flux.lt(20) || w.conversionCooldown > 0;
-  $("convert").querySelector("small").textContent =
-    w.conversionCooldown > 0
-      ? `Field cooling · ${Math.ceil(w.conversionCooldown)}s`
-      : "Spend flow here or develop Dynamics.";
-  $("flux-wrap").hidden = !w.apparatus.includes("tap");
-  $("coherence-wrap").hidden = !w.reconstructions;
-  arrayView.render();
-  composition.sync();
-  composition.updateSummaries();
-  root.dataset.centerOwner = w.p2.cl
-    ? "array"
-    : w.planetary !== "HIDDEN" &&
-        !w.capabilities.includes("CAP_PLANETARY_BINDING")
-      ? "planetary"
-      : "binding";
-  if (signature === stamp) return;
-  stamp = signature;
-  const focus = document.activeElement?.dataset,
-    focusKey = focus?.id && `${focus.action}:${focus.id}`;
-  const start = Math.max(0, u - 2);
-  markup(
-    "matter-cards",
-    Array.from({ length: u - start + 1 }, (_, j) => j + start)
-      .map(
-        (i) =>
-          `<button class="matter-card ${i === u ? "frontier" : ""}" data-action="matter" data-id="${i}" ${state.energy.lt(price(state, i)) ? "disabled" : ""}><span class="specimen" style="background-position:${((i % 16) / 15) * 100}% ${(Math.floor(i / 16) / 15) * 100}%"></span><span><small>${String(i + 1).padStart(3, "0")} / ${state.everSeen.includes(i) ? "OBSERVED" : "NEW MATTER"}</small><strong>${MATTER[i].name}</strong><b>${fmt(price(state, i))} E <em>↘ Feed</em></b></span></button>`,
-      )
-      .join(""),
-  );
-  markup(
-    "apparatus",
-    revealedApparatus(state)
-      .map((n) =>
-        card(
-          n,
-          "apparatus",
-          w.apparatus.includes(n.id),
-          w.apparatus.includes(n.id) ||
-            state.highest < n.at ||
-            state.energy.lt(n.cost),
-          "E",
-        ),
-      )
-      .join("") ||
-      "<p>Feed the Seed. The first apparatus will take shape here.</p>",
-  );
-  markup("scaffold", apparatusHardware(state));
-  $("dynamics").hidden = w.locations.dynamics === "HIDDEN";
-  $("dynamics").dataset.stage = w.locations.dynamics;
-  const priorFlow = new Set(
-    [...$("flow-graph").querySelectorAll("[data-id]")].map(
-      (el) => el.dataset.id,
-    ),
-  );
-  markup(
-    "flow-graph",
-    w.locations.dynamics === "ECHO" ? '<div class="echo">⌁</div>' : graph(),
-  );
-  $("flow-graph")
-    .querySelectorAll("[data-id]")
-    .forEach((el) => {
-      if (!priorFlow.has(el.dataset.id))
-        el.closest(".node")?.classList.add("revealing");
-    });
-  markup(
-    "coherence-choices",
-    w.reconstructions
-      ? COHERENCE.map((n) =>
-          card(
-            n,
-            "coherence",
-            w.choices.includes(n.id),
-            w.choices.includes(n.id) || w.coherence < n.cost,
-            "C",
-          ),
-        ).join("") +
-          w.choices
-            .filter((id) => id !== "region")
-            .map(
-              (id) =>
-                `<button data-action="return-coherence" data-id="${id}">Return ${id} · +2 C</button>`,
-            )
-            .join("")
-      : "",
-  );
-  $("anchor").hidden = !w.anchors && !w.p2.cl;
-  $("anchor").dataset.regime = regime(state);
-  $("anchor").querySelector("header small").textContent =
-    `PERSISTENT FIELD · BINDING REGIME ${["I", "II", "III", "IV"][regime(state) - 1]}`;
-  markup(
-    "modules",
-    [1, 2, 3, 4]
-      .filter((r) => r <= regime(state))
-      .map(
-        (r) =>
-          `<div class="anchor-arm arm-${r}"><span class="arm-joint">${["CORE SOCKETS", "UTILITY ARM", "SURVEY / REGULATION", "FABRICATION"][r - 1]}</span>${MODULES.filter(
-            (n) => n.regime === r,
-          )
-            .map((n) =>
-              card(
-                n,
-                "module",
-                w.modules.includes(n.id),
-                w.modules.includes(n.id) || w.residue < n.cost,
-                "R",
-              ),
-            )
-            .join("")}</div>`,
-      )
-      .join(""),
-  );
-  markup(
-    "regulator-controls",
-    w.modules.includes("regulator")
-      ? `<form id="regulator-form" data-gesture><strong>CONVERTER REGULATOR</strong><label><input name="enabled" type="checkbox" ${w.automation.regulator.enabled ? "checked" : ""}> Rule enabled</label>${["reserve", "overflow", "ratio", "cap"].map((key, i) => `<label>${["Keep Energy at least", "Convert Flux above", "Energy / Flux target ratio", "Energy cap"][i]}<input name="${key}" type="number" min="0" max="1000000000000" value="${w.automation.regulator[key]}" data-copyable></label>`).join("")}<button type="submit">Set rule</button></form>`
-      : "",
-  );
-  const form = $("regulator-form");
-  if (form)
-    form.onsubmit = (e) => {
-      e.preventDefault();
-      if (transaction || catchingUp) return;
-      const data = new FormData(form),
-        r = state.world.automation.regulator;
-      for (const k of ["reserve", "overflow", "ratio", "cap"])
-        r[k] = Math.max(0, Math.min(1e12, Number(data.get(k)) || 0));
-      r.enabled = data.has("enabled");
-      record(state, "converter-rule");
-      stamp = "";
-    };
-  let spool = $("spool-toggle");
-  if (!spool && w.modules.includes("spool")) {
-    $("relay-device").insertAdjacentHTML(
-      "beforeend",
-      '<button id="spool-toggle">Queue known recovery</button>',
-    );
-    spool = $("spool-toggle");
-    spool.onclick = () => {
-      if (transaction || catchingUp) return;
-      state.world.automation.spool = !state.world.automation.spool;
-      record(state, "spool-rule");
-      stamp = "";
-    };
-  }
-  if (spool) {
-    spool.hidden = !w.modules.includes("spool");
-    spool.textContent = w.automation.spool
-      ? "Stop recovery queue"
-      : "Queue known recovery";
-  }
-  $("converter").hidden = w.locations.converter === "HIDDEN";
-  $("relay-device").hidden =
-    !w.modules.includes("relay") && !w.modules.includes("spool");
-  $("relay-toggle").textContent = w.relay.enabled
-    ? "Pause relay"
-    : "Activate relay";
-  $("binding").hidden = w.boundary === "HIDDEN";
-  $("binding").dataset.stage = w.boundary;
-  $("boundary-stage").textContent = w.boundary;
-  $("binding-message").textContent =
-    w.boundary === "READY"
-      ? "Compress this field. Keep its memory."
-      : "The outer field is learning to hold together.";
-  $("anchor-action").disabled = w.boundary !== "READY";
-  $("anchor-action").textContent =
-    w.boundary === "READY"
-      ? `ANCHOR · +${anchorGain(state)} RESIDUE`
-      : "FIELD STABILIZING";
-  bindingPresentation(state, bindingChannels(state)).forEach(
-    (n, i) =>
-      (root.querySelector(`[data-channel="${i}"]`).style.strokeDasharray =
-        `${n * 270} 880`),
-  );
-  for (const id of ["dynamics", "converter", "anchor"])
-    if (!["HIDDEN", "ECHO"].includes(w.locations[id])) camera.expand(id);
-  if (focusKey) {
-    const [action, id] = focusKey.split(":");
-    root
-      .querySelector(`[data-action="${action}"][data-id="${id}"]`)
-      ?.focus({ preventScroll: true });
-  }
-}
-function signalUI() {
-  const points = composition.layout?.points || {};
-  const signals = [];
-  for (const [id, p] of Object.entries(points)) {
-    if (
-      id === "erasure" ||
-      state.world.locations[id] === "ECHO" ||
-      (id === "array" &&
-        !state.world.p2.cl &&
-        !state.world.modules.includes("fabricator")) ||
-      (id === "planetary" && state.world.planetary === "ECHO")
-    )
-      continue;
-    const v = composition.current[id] || p;
-    const dx = v.x - camera.x,
-      dy = v.y - camera.y;
-    const px = innerWidth / 2 + dx * camera.zoom,
-      py = innerHeight / 2 + dy * camera.zoom;
-    const hw = (p.footprint[0] * camera.zoom) / 2,
-      hh = (p.footprint[1] * camera.zoom) / 2;
-    const el = composition.elements[id];
-    const visibility = visibilityState(
-      { left: px - hw, right: px + hw, top: py - hh, bottom: py + hh },
-      { left: 24, right: innerWidth - 24, top: 100, bottom: innerHeight - 72 },
-      el.dataset.visibility,
-    );
-    el.dataset.visibility = visibility;
-    el.classList.remove("outside-safe-view");
-    if (visibility !== "OFFSCREEN") continue;
-    if (camera.depth && camera.targetLocation === id) continue;
-    const r = Math.min(
-      (innerWidth / 2 - 92) / Math.max(1, Math.abs(dx)),
-      (innerHeight / 2 - 130) / Math.max(1, Math.abs(dy)),
-    );
-    signals.push({
-      id,
-      x: innerWidth / 2 + dx * r,
-      y: innerHeight / 2 + dy * r,
-    });
-  }
-  // Keep edge labels from sitting on one another in crowded directions.
-  for (let i = 0; i < signals.length; i++)
-    for (let j = 0; j < i; j++) {
-      if (
-        Math.abs(signals[i].x - signals[j].x) < 150 &&
-        Math.abs(signals[i].y - signals[j].y) < 38
-      )
-        signals[i].y = Math.min(innerHeight - 90, signals[j].y + 40);
-    }
-  const html = signals
-    .map(
-      (p) =>
-        `<button class="edge-signal" style="left:${p.x}px;top:${p.y}px" data-travel="${p.id}"><span>◇</span>${p.id === "anchor" ? "Field Anchor" : p.id}</button>`,
-    )
-    .join("");
-  if ($("signals").dataset.html !== html) {
-    $("signals").innerHTML = html;
-    $("signals").dataset.html = html;
-  }
-}
-function travel(id) {
-  if (transaction) return;
-  if (
-    ["dynamics", "converter", "anchor"].includes(id) &&
-    !enterLocation(state, id)
-  )
-    return;
-  camera.fast =
-    state.world.modules.includes("navigation") ||
-    state.world.p2.tech.includes("afterimage");
-  if (
-    id === "array" &&
-    !state.world.p2.cl &&
-    !state.world.modules.includes("surveyor")
-  )
-    return;
-  camera.go(id);
-  record(state, "travel", { id });
-  state.world.runActions.travelTime += camera.travel?.duration || 0;
-  stamp = "";
-}
-function beginReset(kind) {
-  if (
-    catchingUp ||
-    transaction ||
-    !(kind === "anchor"
-      ? anchorGain(state)
-      : kind === "convergence"
-        ? convergenceGain(state)
-        : kind === "planetary"
-          ? state.world.planetary === "READY"
-          : reconstructionReady(state))
-  )
-    return;
-  transaction = {
-    kind,
-    age: 0,
-    committed: false,
-    duration: kind === "convergence" ? 2.2 : 1.5,
-  };
-  bus.emit({ type: "RESET_BEGIN", kind });
-  camera.inputLock = transaction.duration;
-  root.dataset.cinematic = kind;
-  audio.tone(kind === "anchor" ? 110 : 260, 30, 1.3, 0.13);
-  $("moment").textContent =
-    kind === "anchor"
-      ? `THE FIELD REMEMBERS · +${anchorGain(state)} RESIDUE`
-      : kind === "convergence"
-        ? `CONVERGENCE · +${convergenceGain(state)} ALIGNMENT`
-        : kind === "planetary"
-          ? "THE FIELD OPENS TO WORLDS"
-          : "RECONSTRUCTING";
-}
-function transact(dt) {
-  if (!transaction) return;
-  const t = transaction;
-  t.age += dt;
-  root.style.setProperty(
-    "--collapse",
-    Math.sin(Math.min(1, t.age / t.duration) * Math.PI),
-  );
-  if (t.age >= t.duration / 2 && !t.committed) {
-    t.committed = true;
-    if (t.kind === "anchor") {
-      anchorWorld(state, fresh);
-      composition.expanded.clear();
-      renderer?.resetFromState(state);
-      camera.go("universe");
-      displayEnergy = state.energy;
-      displayMass = state.mass;
-    } else if (t.kind === "convergence") {
-      converge(state, fresh, freshWorld);
-      composition.expanded.clear();
-      arrayView.clear();
-      renderer?.resetFromState(state);
-      camera.go("array");
-      displayEnergy = state.energy;
-      displayMass = state.mass;
-    } else if (t.kind === "planetary") {
-      breachPlanetary(state);
-      camera.go("universe");
-    } else {
-      reconstructWorld(state);
-      if (camera.targetLocation !== "dynamics") camera.go("dynamics");
-    }
-    stamp = "";
-    renderUI();
-    save(state);
-  }
-  if (t.age >= t.duration) {
-    delete root.dataset.cinematic;
-    root.style.setProperty("--collapse", 0);
-    $("moment").textContent = "";
-    transaction = null;
-    camera.inputLock = 0;
-  }
-}
-root.addEventListener("click", (e) => {
-  audio.start();
-  audio.setVolume(state.settings.audio);
-  const el = e.target.closest("button");
-  if (!el) return;
-  if (el.dataset.toggle) {
-    if (!transaction) {
-      if (["dynamics", "converter", "anchor"].includes(el.dataset.toggle))
-        enterLocation(state, el.dataset.toggle);
-      composition.toggle(el.dataset.toggle);
-      stamp = "";
-      renderUI();
-    }
-    return;
-  }
-  if (el.dataset.travel) {
-    travel(el.dataset.travel);
-    return;
-  }
-  if (transaction || catchingUp) return;
-  const { action, id } = el.dataset;
-  let ok = false;
-  if (action === "matter") ok = buy(state, Number(id));
-  if (action === "apparatus") ok = purchaseApparatus(state, id);
-  if (action === "flow") ok = purchaseFlow(state, id);
-  if (action === "return-coherence") ok = returnCoherence(state, id);
-  if (action === "coherence") ok = spendCoherence(state, id);
-  if (action === "module") ok = purchaseModule(state, id);
-  if (action === "reconstruct") beginReset("reconstruct");
-  if (ok) {
-    audio.click();
-    if (action === "matter") bus.emit({ type: "FEED_LAUNCH", id });
-    fluxPresentation.reset(state.dynamics.flux);
-    stamp = "";
-    renderUI();
-  }
-});
-$("anchor-action").onclick = () => beginReset("anchor");
-$("convert").onclick = () => {
-  if (transaction || catchingUp) return;
-  if (convertFlux(state)) {
-    audio.tone(180, 540, 0.3, 0.06);
-    fluxPresentation.reset(state.dynamics.flux);
-    fx.animate($("energy"), [{ opacity: 0.35 }, { opacity: 1 }], {
-      duration: 450,
-      delay: 180,
-    });
-  }
-  stamp = "";
-  renderUI();
-};
-$("home").onclick = () => {
-  if (!transaction) camera.go("universe");
-};
-$("back").onclick = () => {
-  if (!transaction) camera.back();
-};
-$("relay-toggle").onclick = () => {
-  if (transaction) return;
-  state.world.relay.enabled = !state.world.relay.enabled;
-  stamp = "";
-};
-let pendingInput = null;
-root.addEventListener(
-  "pointerdown",
-  () => {
-    pendingInput = performance.now();
-  },
-  { capture: true },
-);
-bindWorldPointer(
-  root,
-  camera,
-  () => !!transaction || catchingUp,
-  (t) => (pendingInput = t),
-);
-root.addEventListener(
-  "wheel",
-  (e) => {
-    if (
-      e.target.closest("dialog, .location-body, .array-console, [data-gesture]")
-    )
-      return;
-    e.preventDefault();
-    if (!transaction) {
-      pendingInput = e.timeStamp;
-      camera.wheel(e.deltaY);
-    }
-  },
-  { passive: false },
-);
-window.addEventListener("keydown", (e) => {
-  if (
-    e.key.toLowerCase() === "o" &&
-    !e.target.closest("input,select,textarea,dialog")
-  )
-    $("settings-open").click();
-  if (e.key === "Escape" && !$("settings").open && !transaction) camera.back();
-});
-$("settings-open").onclick = () => {
-  if (transaction || catchingUp) return;
-  $("quality").value = state.settings.quality;
-  $("motion").checked = camera.reducedMotion;
-  $("volume").value = state.settings.audio;
-  $("settings").showModal();
-};
-$("settings-close").onclick = () => $("settings").close();
-$("quality").onchange = (e) => {
-  state.settings.quality = e.target.value;
-  renderer?.setQuality(e.target.value);
-};
-$("motion").onchange = (e) => {
-  camera.reducedMotion = state.settings.reducedMotion = e.target.checked;
-  root.classList.toggle("reduced", e.target.checked);
-};
-$("volume").oninput = (e) => {
-  state.settings.audio = +e.target.value;
-  audio.setVolume(+e.target.value);
-};
-$("export").onclick = () => {
-  const a = document.createElement("a"),
-    url = URL.createObjectURL(
-      new Blob([encode(state)], { type: "application/json" }),
-    );
-  a.href = url;
-  a.download = "accretion-save.json";
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-};
-$("import").onchange = async (e) => {
-  if (transaction || catchingUp) return;
+gsap.ticker.lagSmoothing(0); // animations stay time-true even when a frame is slow
+const KEY = "accretion.save.v4";
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const WARM = [1.6, 0.85, 0.35],
+  WHITE = [1.5, 1.4, 1.2],
+  CYAN = [0.4, 1.5, 1.4],
+  VIOLET = [1.0, 0.7, 1.7];
+
+function load() {
   try {
-    const imported = decode(await e.target.files[0].text());
-    composition.expanded.clear();
-    adopt(imported);
-    state = imported;
-    composition.key = "";
-    composition.sync(true);
-    camera.go(state.world.p2.cl ? "array" : "universe");
-    arrayView.clear();
-    well.seal();
-    renderer?.resetFromState(state);
-    renderer?.setQuality(state.settings.quality);
-    camera.reducedMotion = state.settings.reducedMotion;
-    root.classList.toggle("reduced", camera.reducedMotion);
-    audio.setVolume(state.settings.audio);
-    displayEnergy = state.energy;
-    displayMass = state.mass;
-    stamp = "";
-    save(state);
-    $("save-message").textContent = "Save restored.";
-  } catch (err) {
-    $("save-message").textContent = err.message;
-  }
-  e.target.value = "";
-};
-async function catchup(seconds) {
-  catchingUp = true;
-  $("moment").textContent = "RECALLING THE FIELD";
-  try {
-    await offlineAsync(state, seconds, (p) => {
-      $("moment").textContent = `RECALLING THE FIELD · ${Math.round(p * 100)}%`;
-    });
-    state.world.events = [];
-  } finally {
-    catchingUp = false;
-    $("moment").textContent = "";
-    clock.last = performance.now();
-    stamp = "";
-  }
+    const raw = JSON.parse(localStorage.getItem(KEY));
+    if (raw?.v === 4) {
+      const d = newSave();
+      return { ...d, ...raw, run: { ...d.run, ...raw.run }, stats: { ...d.stats, ...raw.stats }, settings: { ...d.settings, ...raw.settings }, flags: raw.flags || {}, seen: raw.seen || [] };
+    }
+  } catch {}
+  return null;
 }
-document.addEventListener("visibilitychange", () => {
-  const now = performance.now();
-  if (document.hidden) {
-    clock.hide(now, !!transaction);
-    save(state);
-    audio.ctx?.suspend();
-  } else {
-    const seconds = clock.resume(now);
-    if (seconds > 0) catchup(seconds);
-    audio.ctx?.resume();
+
+const GOALS = [
+  ["커서를 천체 위에 올려 <b>조석 렌즈</b>로 궤도에서 끌어내려라.", (s) => s.s.stats.captures >= 6, (s) => `${Math.min(6, s.s.stats.captures)} / 6`],
+  ["<kbd>CLICK</kbd> <b>FIELD PULSE</b> — 천체가 몰린 곳에 충격파를 쏴라.", (s) => s.s.stats.pulses >= 3, (s) => `${Math.min(3, s.s.stats.pulses)} / 3`],
+  ["<kbd>1</kbd> 또는 오른쪽 탭으로 <b>STRUCTURE</b>를 열고 Energy로 <b>Tidal Grip</b>을 설치하라.", (s) => s.lv("grip") >= 1 || s.s.anchors > 0],
+  ["<b>금색 조준선</b>이 붙은 천체가 Frontier다. 흡수하면 더 큰 Matter가 열린다.", (s) => s.s.best >= 4, (s) => `FRONTIER ${s.s.run.frontier + 1}`],
+  ["쉬지 않고 포획해 <b>압력 100%</b> — FIELD RELEASE를 터뜨려라.", (s) => s.s.stats.releases >= 1, (s) => `${Math.floor(s.pressure)}%`],
+  ["각 arm의 다음 노드는 선행 노드를 올리면 드러난다. <b>Frontier 20</b>까지.", (s) => s.s.best >= 20, (s) => `${s.s.run.frontier + 1} / 21`],
+  ["PROCESSING arm 끝의 <b>Flux Tap</b>을 설치하라. 압력 속에서 무언가 새어 나온다.", (s) => s.lv("fluxtap") >= 1 || s.s.anchors > 0],
+  ["Flux로 <b>DYNAMICS</b> 노드를 열고 <kbd>SPACE</kbd> <b>INJECT</b>.", (s) => s.s.flags.injected || s.s.anchors > 0],
+  ["<b>Binding Limit</b> — Frontier 60까지 밀어붙여라.", (s) => s.s.best >= 59, (s) => `${s.s.run.frontier + 1} / 60`],
+  ["장이 한계에 닿았다. <b>ANCHOR</b>로 이 우주를 접어라.", (s) => s.s.anchors >= 1],
+  ["<b>FIELD ANCHOR</b> 모듈을 설치하라. 자동화는 여기서만 나온다.", (s) => Object.keys(s.s.mods).length > 0],
+  ["<b>Planetary Boundary</b> — Frontier 80의 껍질 세 분절을 부숴라.", (s) => s.s.breached.planetary, (s) => `${s.s.run.frontier + 1} / 80`],
+  ["<b>Stellar Boundary</b> — Frontier 140. 별을 삼킬 차례다.", (s) => s.s.breached.stellar, (s) => `${s.s.run.frontier + 1} / 140`],
+  ["남은 이름을 전부 삼켜라.", (s) => s.s.ended, (s) => `${s.s.run.frontier + 1} / 200`],
+  ["자유 플레이. 더 깊이 Anchor하라.", () => false, () => "∞"],
+];
+
+class Game {
+  constructor() {
+    document.body.insertAdjacentHTML("afterbegin", `<div id="stage"><canvas id="gl"></canvas><canvas id="ov"></canvas></div>`);
+    this.gl = document.getElementById("gl");
+    this.gfx = new Gfx(this.gl);
+    this.ov = new Overlay(document.getElementById("ov"));
+    this.audio = new Audio();
+    this.saved = load();
+    this.sim = new Sim(this.saved || newSave());
+    this.ui = new UI(this);
+    this.state = "title";
+    this.paused = false;
+    this.cur = { x: 0.5, y: 0.2, active: false, pulse: false, inject: false };
+    this.view = { ox: 0, oxT: 0, zoom: 1.55, recoil: 1 };
+    this.trauma = 0;
+    this.stop = 0;
+    this.ts = 1;
+    this.act = 0;
+    this.gulp = 0;
+    this.jets = 0;
+    this.bhR = 0.105;
+    this.wave = { x: 0, y: 0, r: 0, s: 0, v: 0 };
+    this.cine = null;
+    this.c = { dark: 1, collapse: 0, scale: 1, ring: 1 };
+    this.heartT = 0;
+    this.applySettings();
+    this.bind();
+    this.ui.showTitle(!!this.saved);
+    this.last = performance.now();
+    requestAnimationFrame((t) => this.frame(t));
+    setInterval(() => this.save(), 5000);
+    addEventListener("visibilitychange", () => document.hidden && this.save());
+    addEventListener("resize", () => this.ov.resize());
   }
-});
-setInterval(() => {
-  if (!document.hidden && !transaction && !catchingUp) save(state);
-}, 5000);
-window.addEventListener("pagehide", () => {
-  if (!document.hidden) save(state);
-});
-function frame(now) {
-  const rawDT = clock.frame(now),
-    dt = Math.min(0.1, rawDT),
-    wasTransaction = !!transaction;
-  if (!document.hidden) {
-    camera.update(dt);
-    composition.update(dt);
-    fx.reduced = camera.reducedMotion;
-    fx.update(dt);
-    transact(dt);
-    if (!paused && !catchingUp && !transaction && !wasTransaction) {
-      for (const e of tick(state, rawDT))
-        if (e.type === "absorb") audio.feed(MATTER[e.item].category);
+  applySettings() {
+    const s = this.sim.s.settings;
+    this.audio.setVolumes(s.volume, s.music);
+    this.gfx.setQuality(s.quality);
+  }
+  save() {
+    if (this.state !== "play" || this.wiped) return;
+    try {
+      localStorage.setItem(KEY, JSON.stringify(this.sim.s));
+    } catch {}
+  }
+  exportSave() {
+    return btoa(unescape(encodeURIComponent(JSON.stringify(this.sim.s))));
+  }
+  importSave(str) {
+    try {
+      const o = JSON.parse(decodeURIComponent(escape(atob(str.trim()))));
+      if (o.v !== 4) return false;
+      this.wiped = true;
+      localStorage.setItem(KEY, JSON.stringify(o));
+      return true;
+    } catch {
+      return false;
     }
-    const events = drainEvents(state);
-    if (events.length) renderUI();
-    for (const e of events) bus.emit(e);
-    const compression =
-      ["anchor", "convergence"].includes(transaction?.kind) &&
-      !camera.reducedMotion
-        ? 1 -
-          0.8 *
-            Math.sin(
-              Math.min(1, transaction.age / transaction.duration) * Math.PI,
-            )
-        : 1;
-    $("world").style.transform =
-      camera.transform(innerWidth, innerHeight, fx.impulse) +
-      ` scale(${compression})`;
-    const renderStarted = performance.now();
-    const fieldPulse =
-      !camera.reducedMotion &&
-      ["planetary", "convergence"].includes(transaction?.kind)
-        ? Math.sin(
-            Math.min(1, transaction.age / transaction.duration) * Math.PI,
-          )
-        : 0;
-    renderer?.render(
-      state,
-      dt,
-      -1,
-      fx.impulse
-        ? { x: camera.x, y: camera.y, zoom: camera.zoom * (1 + fx.impulse) }
-        : camera,
-      fieldPulse,
-    );
-    const renderCPU = performance.now() - renderStarted;
-    displayEnergy = displayEnergy.add(
-      state.energy.sub(displayEnergy).mul(Math.min(1, dt * 14)),
-    );
-    displayMass = displayMass.add(
-      state.mass.sub(displayMass).mul(Math.min(1, dt * 14)),
-    );
-    const flux = fluxPresentation.update(state.dynamics.flux, dt);
-    $("flux").textContent = flux.lt(1000)
-      ? flux.toNumber().toFixed(1)
-      : fmt(flux);
-    $("energy").textContent = fmt(displayEnergy);
-    $("mass").textContent = massText(displayMass);
-    if (now - lastUI > 150) {
-      renderUI();
-      signalUI();
-      lastUI = now;
-      $("coordinate").textContent =
-        `${camera.targetLocation.toUpperCase()} / ${state.world.anchors ? "ANCHORED FIELD" : "SEED"}`;
+  }
+  wipe() {
+    this.wiped = true;
+    localStorage.removeItem(KEY);
+  }
+  start(fresh) {
+    if (this.state !== "title") return;
+    this.audio.start();
+    this.applySettings();
+    if (fresh) {
+      const keep = this.sim.s.settings;
+      this.sim = new Sim(newSave());
+      this.sim.s.settings = keep;
     }
-    if (pendingInput !== null) {
-      telemetry.inputLatency.push(
-        Math.max(0, performance.now() - pendingInput),
-      );
-      pendingInput = null;
-      if (telemetry.inputLatency.length > 300) telemetry.inputLatency.shift();
-    }
-    if (import.meta.env.DEV)
-      telemetry.timeline.push({
-        renderCPU,
-        ms: rawDT * 1000,
-        matter: state.queue.length,
-        particles: renderer?.pg.drawRange.count || 0,
-        animatedDOM: document.getAnimations().length,
+    this.state = "play";
+    this.audio.play("key");
+    this.ui.hideTitle();
+    gsap.to(this.view, { zoom: 1, duration: 1.8, ease: "power3.inOut" });
+    this.sim.pressure = 0;
+    for (let i = 0; i < 9; i++) this.sim.spawn(this.sim.pickId());
+  }
+  bind() {
+    const map = (e) => {
+      const [x, y] = this.ov.unproject(e.clientX, e.clientY);
+      this.cur.x = x;
+      this.cur.y = y;
+      this.cur.active = e.target === this.gl && this.state === "play";
+    };
+    addEventListener("pointermove", map);
+    this.gl.addEventListener("pointerdown", (e) => {
+      map(e);
+      if (this.state !== "play") return;
+      this.audio.start();
+      if (e.button === 2) this.cur.inject = true;
+      else this.cur.pulse = true;
+    });
+    this.gl.addEventListener("pointerleave", () => (this.cur.active = false));
+    addEventListener("contextmenu", (e) => e.preventDefault());
+    addEventListener("keydown", (e) => {
+      if (this.state !== "play" || e.repeat) return;
+      if (e.code === "Space") (this.cur.inject = true), e.preventDefault();
+      else if (e.key >= "1" && e.key <= "4") this.ui.toggle(+e.key - 1);
+      else if (e.key === "e" || e.key === "E" || e.key === "Tab") (this.ui.toggle(this.ui.tab >= 0 ? this.ui.tab : this.ui.lastTab), e.preventDefault());
+      else if (e.key === "Escape") document.getElementById("modal").classList.contains("on") ? this.ui.closeModal() : this.ui.tab >= 0 ? this.ui.toggle(this.ui.tab) : this.ui.settings();
+    });
+  }
+  onDrawer(open) {
+    const w = open ? parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--drawer")) : 0;
+    this.view.oxT = -w / innerHeight;
+    const cx = `calc(50% - ${w / 2}px)`;
+    document.getElementById("hotbar").style.left = cx;
+    document.getElementById("banner").style.left = cx;
+  }
+  buy(kind, id, el) {
+    const sim = this.sim;
+    if (kind === "cat") return;
+    const ok = kind === "up" ? sim.buy(id) : kind === "node" ? sim.buyNode(id) : sim.buyMod(id);
+    this.ui.flash(el, ok);
+    if (!ok) this.audio.play("deny");
+    this.ui.detail();
+    this.ui.refresh();
+  }
+  shake(a) {
+    this.trauma = Math.min(1.2, this.trauma + a);
+  }
+  kick(x, y, s, v = 2.2) {
+    Object.assign(this.wave, { x, y, r: 0.02, s, v });
+  }
+  // ---------- ANCHOR cinematic: LOCK → COMPRESSION → COLLAPSE → WAVE → REBIRTH ----------
+  anchor() {
+    const sim = this.sim;
+    if (this.cine || !sim.canAnchor()) return;
+    const first = !sim.s.anchors,
+      k = first ? 1 : 0.55,
+      c = this.c;
+    if (this.ui.tab >= 0) this.ui.toggle(this.ui.tab);
+    sim.frozen = 99;
+    this.cine = "lock";
+    this.audio.play("collapse", { rate: first ? 1 : 1.5 });
+    const tl = gsap.timeline();
+    tl.to(sim, { pressure: 100, duration: 0.6 * k, ease: "power2.in" })
+      .call(() => ((this.cine = "compress"), this.shake(0.3)))
+      .to(this.view, { recoil: 1.08, duration: 1.2 * k, ease: "power2.in" }, ">")
+      .to(this, { act: 5, duration: 1.2 * k }, "<")
+      .call(() => (this.cine = "collapse"))
+      .to(c, { collapse: 1, scale: 0.06, dark: 0.04, ring: 0, duration: 0.7 * k, ease: "power3.in" })
+      .call(() => {
+        const gain = sim.anchor();
+        sim.frozen = 99;
+        this.gfx.P.n = 0;
+        this.cine = "wave";
+        this.audio.play("wave");
+        this.gfx.fx.flash = sim.s.settings.reduced ? 0.25 : 1.1;
+        this.shake(1.2);
+        this.kick(0, 0, 2.2, 1.6);
+        this.act = 0;
+        this.ov.float(0, 0.16, `+${gain} RESIDUE`, C.violet, 34, 2.2);
+        for (let i = 0; i < 140; i++) {
+          const a = Math.random() * 6.283,
+            v = 0.5 + Math.random() * 1.4;
+          this.gfx.emit(0, 0, Math.cos(a) * v, Math.sin(a) * v * K, 1 + Math.random(), 3 + Math.random() * 3, ...VIOLET, 0, 1.2);
+        }
+        this.ui.banner("ANCHOR", `Residue +${gain}`, "var(--violet)", first ? "FIRST COLLAPSE" : `COLLAPSE ${sim.s.anchors}`, 1.4);
+      }, null, "+=" + 0.25 * k)
+      .to(this.view, { recoil: 0.9, duration: 0.12 })
+      .to(this.view, { recoil: 1, duration: 1.4, ease: "elastic.out(1,0.5)" })
+      .to(c, { collapse: 0, dark: 1, scale: 1, ring: 1, duration: 1.5 * k + 0.4, ease: "power2.out" }, "<")
+      .call(() => {
+        this.cine = null;
+        sim.frozen = 0;
+        for (let i = 0; i < 8; i++) sim.spawn(sim.pickId());
+        this.save();
+        if (first) {
+          this.ui.banner("FIELD ANCHOR DETECTED", "이전 우주의 잔류장이 새 장소를 드러냈다", "var(--violet)", "NEW LOCATION", 2);
+          this.audio.play("discover", { rate: 0.75 });
+        }
+        this.ui.reveal(2);
+        this.ui.open(2);
       });
-    if (telemetry.timeline.length > 3600) telemetry.timeline.shift();
-    telemetry.frames.push(rawDT * 1000);
-    if (telemetry.frames.length > 3600) telemetry.frames.shift();
   }
-  requestAnimationFrame(frame);
+  // ---------- events → feel ----------
+  handle(ev) {
+    const g = this.gfx,
+      ov = this.ov,
+      au = this.audio,
+      sim = this.sim,
+      red = sim.s.settings.reduced;
+    let pulseKills = 0,
+      shown = 0;
+    for (const e of ev) {
+      const pan = e.x != null ? clamp(e.x / 1.2, -1, 1) * 0.7 : 0;
+      switch (e.t) {
+        case "capture": {
+          const big = e.id >= sim.s.run.frontier - 1;
+          g.burst(e.x, e.y, big ? 16 : 7, 0.5, 0.5, big ? 4.5 : 3, e.broken ? WHITE : WARM, 0.5);
+          g.burst(e.x, e.y, 3, 0.15, 0.9, 2.5, WHITE, 1.4);
+          if (shown++ < 6 || big) ov.float(e.x, e.y + e.sz, "+" + fmt(e.energy), e.broken ? C.white : e.tier === 2 ? C.red : C.amber, e.broken ? 22 : big ? 18 : 13);
+          if (e.flux && Math.random() < 0.3) ov.float(e.x, e.y - e.sz * 1.5, "+" + fmt(e.flux) + " FLUX", C.cyan, 12);
+          au.capture(e.chain, pan, big);
+          this.act = Math.min(4, this.act + (big ? 0.35 : 0.12));
+          if (e.cause === "pulse" || e.cause === "shock") pulseKills++;
+          if (e.broken) {
+            ov.float(e.x, e.y + e.sz * 2.4, "TIDAL BREAK", C.white, 15, 1.1);
+            ov.ring(e.x, e.y, 0.02, 0.16, 0.35, C.white, 3);
+            au.play("breakk", { pan, gap: 0.05 });
+            this.stop = Math.max(this.stop, 0.035);
+            this.shake(0.22);
+          }
+          break;
+        }
+        case "split": {
+          const dir = e.a + Math.PI / 2;
+          g.burst(e.x, e.y, e.n * 5, 0.35, 0.8, 3.5, WARM, 1.6, 1.2, dir);
+          if (e.energy) ov.float(e.x, e.y, `+${fmt(e.energy * e.n)}`, C.hot, 12);
+          au.play("shock", { rate: 1.6, vol: 0.35, pan, gap: 0.06 });
+          break;
+        }
+        case "absorb": {
+          const m = MATTER[e.id],
+            front = e.id >= sim.s.run.frontier - 1;
+          this.gulp = Math.min(0.16, this.gulp + (front ? 0.05 : 0.012));
+          this.act = Math.min(4, this.act + 0.08);
+          au.play("absorb", { rate: front ? 0.8 : 1.3 + Math.random() * 0.4, vol: front ? 1 : 0.4, gap: 0.045 });
+          if (front && performance.now() - (this.lastMassT || 0) > 450) {
+            this.lastMassT = performance.now();
+            ov.float((Math.random() - 0.5) * 0.1, sim.rh * 1.5 + 0.03, "+" + fmtMass(e.mass), C.white, 14, 1.1);
+            ov.ring(0, 0, sim.rh, sim.rh * 2.6, 0.5, C.amber, 2, true);
+          }
+          if (e.first) {
+            this.ui.toast(e.id);
+            au.play("discover", { rate: 1 + (e.id % 5) * 0.06, vol: 0.5, gap: 0.2 });
+          }
+          if (e.band && e.id > 0) {
+            this.ui.banner(m.className.toUpperCase(), `새로운 분류의 Matter가 장에 들어왔다`, "var(--amber)", "NEW CLASS", 1.6);
+            gsap.fromTo(this.view, { recoil: 0.95 }, { recoil: 1, duration: 1.6, ease: "power2.out" });
+            this.kick(0, 0, 0.7, 1.4);
+          }
+          break;
+        }
+        case "pulse":
+          ov.ring(e.x, e.y, 0.01, e.r, 0.3, C.white, 3);
+          ov.ring(e.x, e.y, 0.01, e.r * 1.25, 0.45, C.amber, 1.5);
+          if (e.dual) ov.ring(-e.x, -e.y, 0.01, e.r, 0.3, C.amber, 2);
+          this.kick(e.x, e.y, 0.9, 1.4);
+          g.burst(e.x, e.y, 14, 0.9, 0.35, 3, WHITE, 0);
+          au.play("pulse", { pan, rate: 0.95 + Math.random() * 0.1 });
+          this.shake(0.12);
+          break;
+        case "shock":
+          ov.ring(e.x, e.y, 0.01, e.r, 0.28, e.cause === "shard" ? C.white : C.hot, 2);
+          au.play("shock", { pan, gap: 0.04, vol: 0.6 });
+          break;
+        case "arc":
+          ov.arc(e.x1, e.y1, e.x2, e.y2);
+          au.play("tick", { rate: 0.7 + Math.random() * 0.6, gap: 0.03 });
+          break;
+        case "release":
+          this.ui.banner("FIELD RELEASE", `수율 ×${sim.st.releaseMult} · 유입 폭주`, "var(--red)", "", 1.1);
+          au.play("release");
+          this.ts = 0.2;
+          gsap.to(this, { ts: 1, duration: 0.9, ease: "power2.in" });
+          this.kick(0, 0, 2, 1.5);
+          g.fx.flash = red ? 0.1 : 0.4;
+          this.shake(0.9);
+          this.jets = 1;
+          this.act = 4;
+          gsap.fromTo(this.view, { recoil: 0.92 }, { recoil: 1, duration: 1.3, ease: "elastic.out(1,0.45)" });
+          ov.ring(0, 0, sim.rh, 1.6, 0.9, C.red, 5, true);
+          ov.ring(0, 0, sim.rh, 1.2, 0.7, C.white, 2, true);
+          break;
+        case "frontier":
+          au.play("key", { rate: 1.2, vol: 0.45 });
+          break;
+        case "buy": {
+          const u = UPGRADES.find((x) => x.id === e.id);
+          if (e.auto) break;
+          au.play(u.key ? "key" : "buy", { rate: u.key ? 1 : 1 + Math.min(12, e.level) * 0.03 });
+          this.act = Math.min(4, this.act + 0.5);
+          ov.ring(0, 0, sim.rMin * 0.84, sim.rMin * 1.05, 0.5, C.amber, 2, true);
+          if (u.key) this.ui.banner(u.name.toUpperCase(), u.fx, "var(--amber)", "APPARATUS ONLINE", 1.2);
+          break;
+        }
+        case "node":
+          au.play("key", { rate: 1.5 });
+          ov.ring(0, 0, sim.rMin * 0.84, sim.rMin * 1.2, 0.6, C.cyan, 2, true);
+          break;
+        case "mod":
+          au.play("key", { rate: 0.8 });
+          this.ui.sig = "";
+          break;
+        case "unfold":
+          this.ui.banner("DYNAMICS", "압력 속에서 응답하는 무언가가 감지되었다", "var(--cyan)", "SIGNAL DETECTED", 2);
+          au.play("discover", { rate: 0.8 });
+          break;
+        case "inject":
+          sim.s.flags.injected = true;
+          au.play("inject");
+          this.kick(0, 0, 1.3, 1.8);
+          ov.ring(0, 0, sim.rh, 1.4, 0.8, C.cyan, 4, true);
+          for (let i = 0; i < 60; i++) {
+            const a = Math.random() * 6.283;
+            g.emit(Math.cos(a) * 0.1, Math.sin(a) * 0.1 * K, Math.cos(a) * 1.2, Math.sin(a) * 1.2 * K, 0.8, 3, ...CYAN, 0, 2);
+          }
+          if (e.found.length) {
+            const R = e.found[e.found.length - 1].toUpperCase();
+            this.ui.banner({ TURBULENT: "TURBULENT FEED", CLOSED: "CLOSED LOOP", CASCADE: "ACCRETION CASCADE" }[R], "숨겨진 공명 조합을 발견했다", "var(--cyan)", "RESONANCE DISCOVERED", 2);
+            au.play("discover", { rate: 1.3 });
+            this.ui.sig = "";
+          }
+          break;
+        case "limit":
+          this.ui.banner("BINDING LIMIT", "장이 더 큰 천체를 묶지 못한다 — ANCHOR", "var(--violet)", "FIELD SATURATED", 2.4);
+          au.play("riser");
+          this.shake(0.4);
+          break;
+        case "boundary":
+          this.ui.banner(e.name, "세 분절을 모두 부숴라 · FIELD RELEASE가 균열을 낸다", "var(--violet)", "GATE", 2.4);
+          au.play("riser", { rate: 0.8 });
+          this.shake(0.5);
+          break;
+        case "segment":
+          au.play("segment");
+          this.shake(0.7);
+          this.stop = 0.07;
+          g.fx.flash = red ? 0.05 : 0.2;
+          for (let i = 0; i < 70; i++) {
+            const a = Math.random() * 6.283,
+              r = sim.rMin + 0.1;
+            g.emit(Math.cos(a) * r, Math.sin(a) * r * K, Math.cos(a) * 0.5, Math.sin(a) * 0.5 * K, 0.9, 4, ...VIOLET, 0.6);
+          }
+          break;
+        case "breach":
+          this.ui.banner("BREACH", e.kind === "planetary" ? "세계급 천체가 장에 들어온다" : "별이 장에 들어온다", "var(--text)", e.kind.toUpperCase() + " BOUNDARY", 2.4);
+          au.play("wave");
+          au.play("release", { rate: 0.7 });
+          this.ts = 0.15;
+          gsap.to(this, { ts: 1, duration: 1.4, ease: "power2.in" });
+          this.kick(0, 0, 2.4, 1.3);
+          g.fx.flash = red ? 0.2 : 0.8;
+          this.shake(1.2);
+          this.jets = 1;
+          gsap.fromTo(this.view, { recoil: 0.86 }, { recoil: 1, duration: 2.2, ease: "power3.out" });
+          break;
+        case "ending":
+          setTimeout(() => this.ui.ending(), 1500);
+          break;
+      }
+    }
+    if (pulseKills) {
+      this.stop = Math.max(this.stop, Math.min(0.07, 0.03 + pulseKills * 0.008));
+      this.shake(Math.min(0.5, 0.1 + pulseKills * 0.06));
+    }
+    ev.length = 0;
+  }
+  frame(now) {
+    requestAnimationFrame((t) => this.frame(t));
+    const real = Math.min(0.05, (now - this.last) / 1000);
+    this.last = now;
+    const sim = this.sim,
+      g = this.gfx,
+      v = this.view,
+      c = this.c,
+      set = sim.s.settings,
+      play = this.state === "play" && !this.paused;
+    let dt = real * this.ts;
+    if (this.stop > 0) (this.stop -= real), (dt = 0);
+    // geometry
+    const F = sim.s.run.frontier;
+    this.bhR += (0.105 + 0.11 * (F / 199) ** 0.7 - this.bhR) * Math.min(1, real * 1.2);
+    sim.rh = SHADOW_K * this.bhR;
+    sim.rMin = 1.7 * this.bhR + 0.07;
+    sim.rMax = clamp(g.aspect * 0.64, 0.72, 1.18);
+    if (play) {
+      sim.step(dt, this.cur);
+      this.cur.pulse = this.cur.inject = false;
+      if (this.cine === "compress" || this.cine === "collapse") for (const b of sim.bodies) (b.r *= 1 - real * 2.2), (b.r0 = b.r), (b.heat = 1);
+      if (this.cine === "collapse") sim.bodies.length = 0;
+      this.handle(sim.events);
+      let i = 0;
+      while (i < GOALS.length - 1 && GOALS[i][1](sim)) i++;
+      this.ui.directive(i, GOALS.length - 1, GOALS[i][0], GOALS[i][2]?.(sim));
+      this.ui.update(sim);
+    } else this.cur.pulse = this.cur.inject = false;
+    // view
+    v.ox += (v.oxT - v.ox) * Math.min(1, real * 7);
+    const zoom = v.zoom * v.recoil;
+    g.view.ox = v.ox;
+    g.view.zoom = zoom;
+    // black hole state: every system shows up here
+    const p = sim.pressure / 100,
+      res = sim.resonance > 0;
+    this.act *= Math.exp(-real * 1.3);
+    this.gulp *= Math.exp(-real * 7);
+    this.jets *= Math.exp(-real * 0.9);
+    const b = g.bh;
+    b.radius = this.bhR * (1 + this.gulp) * c.scale;
+    b.disk = clamp(0.38 + 0.62 * Math.min(1, F / 28) + p * 0.15, 0, 1.2);
+    b.activity = this.act + p * 1.4 + (res ? 1 : 0);
+    b.temp = 0.3 + 0.2 * Math.min(1, F / 120) + p * 0.22 + (res ? 0.3 : 0);
+    b.turb = clamp(p + this.act * 0.15, 0, 1);
+    b.jets = this.jets + (res ? 0.35 : 0);
+    b.spin = 0.25 + 0.6 * Math.min(1, F / 160);
+    b.era = 3 + F / 12;
+    b.collapse = c.collapse;
+    b.collapseT = c.collapse * 6;
+    // post fx
+    const fx = g.fx,
+      m = set.reduced ? 0.2 : 1;
+    this.trauma = Math.max(0, this.trauma - real * 1.6);
+    const sh = this.trauma * this.trauma * 0.012 * set.shake * m,
+      tt = now / 1000;
+    fx.sx = sh * (Math.sin(tt * 97) + Math.sin(tt * 61) * 0.5);
+    fx.sy = sh * (Math.cos(tt * 83) + Math.sin(tt * 47) * 0.5);
+    fx.flash *= Math.exp(-real * 6);
+    fx.dark = c.dark;
+    fx.ab += ((sim.tier === 2 ? 0.0035 : 0) + (res ? 0.002 : 0) + this.trauma * 0.012 * m + c.collapse * 0.02 - fx.ab) * Math.min(1, real * 8);
+    fx.red += ((sim.tier === 2 ? 0.55 + 0.25 * Math.sin(tt * 9) : 0) - fx.red) * Math.min(1, real * 5);
+    const w = this.wave;
+    w.r += w.v * real;
+    w.s *= Math.exp(-real * 3.2);
+    fx.wave[0] = w.x; fx.wave[1] = w.y; fx.wave[2] = w.r; fx.wave[3] = w.s * m;
+    // bodies
+    g.begin();
+    const t = sim.t;
+    for (const o of sim.bodies) {
+      const a = Math.min(1, o.age * 3) * (o.ghost ? 0.5 : 1),
+        d = o.sz * 2;
+      if (o.state === 0) {
+        const j = o.heat * 0.004,
+          pop = 1 + Math.max(0, 0.25 - o.age) * 1.2 + o.heat * 0.06;
+        g.body(o.x + (Math.random() - 0.5) * j, o.y + (Math.random() - 0.5) * j, d * pop, d * pop, o.rot + t * (o.seed - 0.5) * 0.9, o.id, o.heat * 0.8, o.flash, a);
+        if (o.heat > 0.5 && Math.random() < real * 14) g.emit(o.x, o.y, (Math.random() - 0.5) * 0.2, (Math.random() - 0.5) * 0.2, 0.5, 2.2, ...WARM, 0.9);
+      } else {
+        const q = o.p || 0,
+          sh2 = 1 - q ** 5 * 0.75;
+        g.body(o.x, o.y, d * (1 + 2.4 * q * q) * sh2, d * (1 - 0.6 * q * q) * sh2, Math.atan2(Math.cos(o.a) * K, -Math.sin(o.a)), o.id, Math.max(o.heat, 0.3 + q * 0.7), o.flash, a * (o.split ? 0.75 : 1));
+        if (Math.random() < real * 50) g.emit(o.x, o.y, 0, 0, 0.45, o.split ? 3.2 : 2.4, 1.5, 0.75 - q * 0.3, 0.3, 0.8);
+      }
+    }
+    if (res && Math.random() < real * 40) {
+      const a = Math.random() * 6.283,
+        r = sim.rMin + Math.random() * 0.5;
+      g.emit(Math.cos(a) * r, Math.sin(a) * r * K, 0, 0, 0.7, 2.5, ...CYAN, 1.2);
+    }
+    g.render(real);
+    this.ov.setView({ ox: v.ox, oy: 0, zoom });
+    this.ov.draw(real, sim, this.cur, { hidden: this.state !== "play", ringAlpha: c.ring });
+    // audio mood
+    this.audio.mood(p, res);
+    if (play && sim.tier === 2 && (this.heartT -= real) <= 0) {
+      this.heartT = 0.42;
+      this.audio.play("heart", { vol: 0.8 });
+    }
+  }
 }
-if (import.meta.env.DEV)
-  window.__accretion = {
-    get state() {
-      return state;
-    },
-    camera,
-    composition,
-    bus,
-    telemetry,
-    renderer,
-    pause: (v) => (paused = v),
-    replace: (s) => {
-      state = s;
-      composition.expanded.clear();
-      fluxPresentation.reset(s.dynamics.flux);
-      arrayView.clear();
-      well.seal();
-      adopt(state);
-      stamp = "";
-      renderer?.resetFromState(state);
-      renderUI();
-    },
-    step: (seconds) => {
-      tick(state, seconds);
-      stamp = "";
-    },
-    snapshot: () => JSON.parse(encode(state)),
-  };
-root.classList.toggle("reduced", camera.reducedMotion);
-if (loaded.error) {
-  $("save-message").textContent = loaded.error;
-  fx.messages.push({ text: loaded.error, level: 5, remaining: 15 });
-}
-if (document.hidden) clock.hide(performance.now());
-renderUI();
-camera.go(state.world.p2.cl ? "array" : "universe");
-window.addEventListener("resize", () => {
-  if (camera.contextAttached && !activePointers.size && !transaction)
-    camera.reframe(composition.target(camera.targetLocation), 0.25);
-});
-if (state.simulation.pendingOffline > 0 || Date.now() - state.savedAt > 2000)
-  catchup(Math.max(0, (Date.now() - state.savedAt) / 1000));
-requestAnimationFrame(frame);
+window.game = new Game();
